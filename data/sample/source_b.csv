@@ -1,0 +1,5 @@
+parcel_id,owner,area_m2,land_use,village
+P001,Owner_A,1345,Residential,Village_01
+P002,Owner_B,850,Commercial,Village_01
+P003,Owner_X,1500,Residential,Village_02
+P004,Owner_D,2170,Agriculture,Village_02
