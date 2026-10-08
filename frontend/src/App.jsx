@@ -1,4 +1,4 @@
-import {  useState } from "react";
+import { useEffect, useState } from "react";
 import MapView from "./MapView";
 import "./App.css";
 
@@ -17,6 +17,7 @@ function App() {
   const [backendOnline, setBackendOnline] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
 
+  
 const loadConflicts = async () => {
   try {
     const response = await fetch(`${API_URL}/conflicts`);
@@ -27,19 +28,23 @@ const loadConflicts = async () => {
 
     const data = await response.json();
 
-    setConflicts(
-      Array.isArray(data.conflicts)
-        ? data.conflicts
-        : []
-    );
-
+    setConflicts(data.conflicts || []);
     setBackendOnline(true);
     setLastUpdated(new Date());
   } catch (error) {
-    console.error("Unable to load conflicts:", error);
+    console.error("Unable to connect to backend:", error);
     setBackendOnline(false);
   }
 };
+
+useEffect(() => {
+  const timer = setTimeout(() => {
+    loadConflicts();
+  }, 0);
+
+  return () => clearTimeout(timer);
+}, []);
+
   const processData = async () => {
     if (!cadastralFile || !droneFile || !gnssFile) {
       setMessage("Please select all three datasets before processing.");
@@ -229,26 +234,20 @@ const loadConflicts = async () => {
 
         <div className="sidebar-footer">
 
-         <div className="system-status">
-  <span
-    className="status-dot"
-    style={{
-      background: backendOnline ? "#22c55e" : "#ef4444",
-    }}
-  />
+          <div className="system-status">
+            <span className="status-dot"></span>
 
-  <div>
-    <strong>
-      {backendOnline ? "Backend Connected" : "Backend Offline"}
-    </strong>
-
-    <small>
-      {lastUpdated
-        ? `Updated ${lastUpdated.toLocaleTimeString()}`
-        : "Connecting to LANDSYNC API..."}
-    </small>
-  </div>
-</div>
+            <div>
+          <strong>
+  {backendOnline ? "Backend Connected" : "Backend Offline"}
+</strong>
+<small>
+  {lastUpdated
+    ? `Updated ${lastUpdated.toLocaleTimeString()}`
+    : "Connecting to LANDSYNC API..."}
+</small>  
+            </div>
+          </div>
 
         </div>
 
@@ -803,7 +802,6 @@ function ConflictsPage({ conflicts }) {
     </div>
   );
 }
-
 
 function ConflictTable({ conflicts }) {
   if (!conflicts.length) {
