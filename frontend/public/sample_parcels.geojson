@@ -1,0 +1,81 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": "P001",
+        "village": "Village_01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.9550, 11.0150],
+            [76.9570, 11.0150],
+            [76.9570, 11.0170],
+            [76.9550, 11.0170],
+            [76.9550, 11.0150]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": "P002",
+        "village": "Village_01"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.9580, 11.0150],
+            [76.9600, 11.0150],
+            [76.9600, 11.0170],
+            [76.9580, 11.0170],
+            [76.9580, 11.0150]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": "P003",
+        "village": "Village_02"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.9550, 11.0180],
+            [76.9570, 11.0180],
+            [76.9570, 11.0200],
+            [76.9550, 11.0200],
+            [76.9550, 11.0180]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "parcel_id": "P004",
+        "village": "Village_02"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [76.9580, 11.0180],
+            [76.9600, 11.0180],
+            [76.9600, 11.0200],
+            [76.9580, 11.0200],
+            [76.9580, 11.0180]
+          ]
+        ]
+      }
+    }
+  ]
+}

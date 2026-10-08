@@ -1,89 +1,216 @@
-def calculate_area_difference(area_a, area_b):
-    difference = abs(area_a - area_b)
+def calculate_percentage_difference(reference, observed):
+    if reference == 0:
+        return 0
 
-    if area_a == 0:
-        percentage = 0
-    else:
-        percentage = (difference / area_a) * 100
-
-    return round(difference, 2), round(percentage, 2)
+    return round(
+        abs(reference - observed) / reference * 100,
+        2
+    )
 
 
-def get_area_risk(difference_percentage):
-    if difference_percentage < 5:
-        return "LOW"
-    elif difference_percentage <= 10:
-        return "MEDIUM"
-    else:
+def calculate_risk(
+    area_percentage,
+    boundary_deviation
+):
+    """
+    Determine overall parcel risk.
+    """
+
+    if area_percentage > 10 or boundary_deviation > 3:
         return "HIGH"
 
+    if area_percentage >= 5 or boundary_deviation >= 1:
+        return "MEDIUM"
 
-def detect_conflicts(source_a, source_b):
+    return "LOW"
+
+
+def calculate_confidence(
+    area_percentage,
+    gnss_accuracy,
+    boundary_deviation
+):
+    """
+    Calculate explainable confidence score.
+
+    Higher confidence means the system has
+    stronger and more reliable supporting evidence.
+    """
+
+    score = 70
+
+    # GNSS measurement quality
+    if gnss_accuracy <= 2:
+        score += 15
+
+    elif gnss_accuracy <= 5:
+        score += 10
+
+    elif gnss_accuracy <= 10:
+        score += 5
+
+    # Clear measurable discrepancy
+    if area_percentage >= 10:
+        score += 10
+
+    elif area_percentage >= 1:
+        score += 5
+
+    # Boundary evidence
+    if boundary_deviation >= 3:
+        score += 5
+
+    elif boundary_deviation >= 1:
+        score += 3
+
+    return min(score, 100)
+
+
+def detect_multisource_conflicts(
+    cadastral,
+    drone,
+    gnss
+):
+    """
+    Compare cadastral, drone and GNSS
+    observations for each parcel.
+    """
+
     conflicts = []
 
-    merged = source_a.merge(
-        source_b,
+    # -----------------------------------------
+    # MERGE CADASTRAL + DRONE
+    # -----------------------------------------
+
+    merged = cadastral.merge(
+        drone,
         on="parcel_id",
-        suffixes=("_a", "_b")
+        how="left"
     )
+
+    # -----------------------------------------
+    # MERGE GNSS
+    # -----------------------------------------
+
+    merged = merged.merge(
+        gnss,
+        on="parcel_id",
+        how="left"
+    )
+
+    # -----------------------------------------
+    # ANALYZE EACH PARCEL
+    # -----------------------------------------
 
     for _, row in merged.iterrows():
 
         parcel_id = row["parcel_id"]
 
-        # -------------------------
-        # AREA MISMATCH
-        # -------------------------
-        area_a = row["area_m2_a"]
-        area_b = row["area_m2_b"]
+        cadastral_area = float(
+            row["area_m2"]
+        )
 
-        if area_a != area_b:
+        drone_area = float(
+            row["observed_area_m2"]
+        )
 
-            difference, percentage = calculate_area_difference(
-                area_a,
-                area_b
+        area_percentage = (
+            calculate_percentage_difference(
+                cadastral_area,
+                drone_area
             )
+        )
 
-            risk = get_area_risk(percentage)
+        boundary_deviation = float(
+            row["boundary_deviation_m"]
+        )
 
-            conflicts.append({
-                "parcel_id": parcel_id,
-                "conflict_type": "AREA_MISMATCH",
-                "source_a_value": area_a,
-                "source_b_value": area_b,
-                "difference": difference,
-                "difference_percentage": percentage,
-                "risk_level": risk
-            })
+        gnss_accuracy = float(
+            row["accuracy_cm"]
+        )
 
-        # -------------------------
-        # OWNER MISMATCH
-        # -------------------------
-        if row["owner_a"] != row["owner_b"]:
+        risk = calculate_risk(
+            area_percentage,
+            boundary_deviation
+        )
 
-            conflicts.append({
-                "parcel_id": parcel_id,
-                "conflict_type": "OWNER_MISMATCH",
-                "source_a_value": row["owner_a"],
-                "source_b_value": row["owner_b"],
-                "difference": None,
-                "difference_percentage": None,
-                "risk_level": "HIGH"
-            })
+        confidence = calculate_confidence(
+            area_percentage,
+            gnss_accuracy,
+            boundary_deviation
+        )
 
-        # -------------------------
-        # LAND USE MISMATCH
-        # -------------------------
-        if row["land_use_a"] != row["land_use_b"]:
+        # -------------------------------------
+        # DETECT DISCREPANCY
+        # -------------------------------------
 
-            conflicts.append({
-                "parcel_id": parcel_id,
-                "conflict_type": "LAND_USE_MISMATCH",
-                "source_a_value": row["land_use_a"],
-                "source_b_value": row["land_use_b"],
-                "difference": None,
-                "difference_percentage": None,
-                "risk_level": "MEDIUM"
-            })
+        conflict_detected = (
+            area_percentage > 0
+            or boundary_deviation > 0
+        )
+
+        if not conflict_detected:
+            continue
+
+        # -------------------------------------
+        # STATUS
+        # -------------------------------------
+
+        if risk == "HIGH":
+
+            status = "HUMAN_REVIEW"
+
+        elif risk == "MEDIUM":
+
+            status = "VERIFICATION_REQUIRED"
+
+        else:
+
+            status = "MONITOR"
+
+        # -------------------------------------
+        # RESULT
+        # -------------------------------------
+
+        conflicts.append({
+
+            "parcel_id": parcel_id,
+
+            "conflict_type":
+                "MULTI_SOURCE_DISCREPANCY",
+
+            "cadastral_area_m2":
+                cadastral_area,
+
+            "drone_area_m2":
+                drone_area,
+
+            "area_difference_percentage":
+                area_percentage,
+
+            "boundary_deviation_m":
+                boundary_deviation,
+
+            "gnss_accuracy_cm":
+                gnss_accuracy,
+
+            "risk_level":
+                risk,
+
+            "confidence":
+                confidence,
+
+            "status":
+                status,
+
+            "owner":
+                row["owner"],
+
+            "land_use":
+                row["land_use"],
+
+            "village":
+                row["village"]
+        })
 
     return conflicts

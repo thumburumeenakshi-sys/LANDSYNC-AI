@@ -1,26 +1,75 @@
-from backend.processing.loader import load_land_data
-from backend.processing.conflicts import detect_conflicts
-from backend.processing.scoring import enrich_conflicts
-from backend.processing.ai_analysis import generate_ai_analysis
+from backend.processing.loader import (
+    load_cadastral_data,
+    load_drone_data,
+    load_gnss_data
+)
+
+from backend.processing.conflicts import (
+    detect_multisource_conflicts
+)
+
+from backend.processing.ai_analysis import (
+    generate_ai_analysis
+)
+
+from backend.database import (
+    save_conflict_result,
+    save_source_records
+)
 
 
-def run_landsync(source_a_path, source_b_path):
+def run_multisource_landsync(
+    cadastral_path,
+    drone_path,
+    gnss_path
+):
 
-    # 1. Load data
-    source_a = load_land_data(source_a_path)
-    source_b = load_land_data(source_b_path)
+    # -----------------------------------------
+    # LOAD SOURCES
+    # -----------------------------------------
 
-    # 2. Detect conflicts
-    conflicts = detect_conflicts(source_a, source_b)
+    cadastral = load_cadastral_data(
+        cadastral_path
+    )
 
-    # 3. Add risk and confidence
-    enriched_conflicts = enrich_conflicts(conflicts)
+    drone = load_drone_data(
+        drone_path
+    )
 
-    # 4. Generate AI analysis
+    gnss = load_gnss_data(
+        gnss_path
+    )
+
+    # -----------------------------------------
+    # SAVE CADASTRAL SOURCE
+    # -----------------------------------------
+
+    save_source_records(
+        cadastral,
+        "CADASTRAL"
+    )
+
+    # -----------------------------------------
+    # DETECT CONFLICTS
+    # -----------------------------------------
+
+    conflicts = detect_multisource_conflicts(
+        cadastral,
+        drone,
+        gnss
+    )
+
     final_results = []
 
-    for conflict in enriched_conflicts:
-        analysis = generate_ai_analysis(conflict)
+    # -----------------------------------------
+    # AI + DATABASE
+    # -----------------------------------------
+
+    for conflict in conflicts:
+
+        analysis = generate_ai_analysis(
+            conflict
+        )
 
         result = {
             **conflict,
@@ -28,5 +77,9 @@ def run_landsync(source_a_path, source_b_path):
         }
 
         final_results.append(result)
+
+        save_conflict_result(
+            result
+        )
 
     return final_results

@@ -1,0 +1,5 @@
+parcel_id,observed_area_m2,boundary_deviation_m,land_cover,flight_date
+P001,1348,3.2,Residential,2026-10-05
+P002,852,0.8,Mixed_Use,2026-10-05
+P003,1497,1.1,Residential,2026-10-05
+P004,2175,2.6,Agriculture,2026-10-05
