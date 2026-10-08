@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import {  useState } from "react";
 import MapView from "./MapView";
 import "./App.css";
 
@@ -14,21 +14,32 @@ function App() {
   const [conflicts, setConflicts] = useState([]);
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState("");
+  const [backendOnline, setBackendOnline] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
-  const loadConflicts = async () => {
-    try {
-      const response = await fetch(`${API_URL}/conflicts`);
-      const data = await response.json();
-      setConflicts(data.conflicts || []);
-    } catch (error) {
-      console.error("Unable to load conflicts:", error);
+const loadConflicts = async () => {
+  try {
+    const response = await fetch(`${API_URL}/conflicts`);
+
+    if (!response.ok) {
+      throw new Error("Backend request failed");
     }
-  };
 
-  useEffect(() => {
-    loadConflicts();
-  }, []);
+    const data = await response.json();
 
+    setConflicts(
+      Array.isArray(data.conflicts)
+        ? data.conflicts
+        : []
+    );
+
+    setBackendOnline(true);
+    setLastUpdated(new Date());
+  } catch (error) {
+    console.error("Unable to load conflicts:", error);
+    setBackendOnline(false);
+  }
+};
   const processData = async () => {
     if (!cadastralFile || !droneFile || !gnssFile) {
       setMessage("Please select all three datasets before processing.");
@@ -218,14 +229,26 @@ function App() {
 
         <div className="sidebar-footer">
 
-          <div className="system-status">
-            <span className="status-dot"></span>
+         <div className="system-status">
+  <span
+    className="status-dot"
+    style={{
+      background: backendOnline ? "#22c55e" : "#ef4444",
+    }}
+  />
 
-            <div>
-              <strong>System Online</strong>
-              <small>LANDSYNC Engine Ready</small>
-            </div>
-          </div>
+  <div>
+    <strong>
+      {backendOnline ? "Backend Connected" : "Backend Offline"}
+    </strong>
+
+    <small>
+      {lastUpdated
+        ? `Updated ${lastUpdated.toLocaleTimeString()}`
+        : "Connecting to LANDSYNC API..."}
+    </small>
+  </div>
+</div>
 
         </div>
 
@@ -782,10 +805,7 @@ function ConflictsPage({ conflicts }) {
 }
 
 
-function ConflictTable({
-  conflicts,
-  expanded = false,
-}) {
+function ConflictTable({ conflicts }) {
   if (!conflicts.length) {
     return (
       <div className="empty-state">

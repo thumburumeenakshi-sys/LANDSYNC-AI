@@ -3,8 +3,11 @@ from backend.supabase_client import supabase
 
 def save_conflict_result(result):
     """
-    Save a LANDSYNC multi-source conflict
+    Save the latest LANDSYNC conflict result
     and its AI analysis into Supabase.
+
+    Existing conflict records for the same parcel
+    and conflict type are updated instead of duplicated.
     """
 
     # -----------------------------------------
@@ -35,16 +38,29 @@ def save_conflict_result(result):
     parcel_id = parcel_response.data[0]["parcel_id"]
 
     # -----------------------------------------
-    # 2. SAVE CONFLICT
+    # 2. CHECK FOR EXISTING CONFLICT
     # -----------------------------------------
+
+    conflict_type = result.get(
+        "conflict_type",
+        "MULTI_SOURCE_DISCREPANCY"
+    )
+
+    existing_response = (
+        supabase
+        .table("conflicts")
+        .select("*")
+        .eq("parcel_id", parcel_id)
+        .eq("conflict_type", conflict_type)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
 
     conflict_data = {
         "parcel_id": parcel_id,
 
-        "conflict_type": result.get(
-            "conflict_type",
-            "MULTI_SOURCE_DISCREPANCY"
-        ),
+        "conflict_type": conflict_type,
 
         "mismatch_percentage": result.get(
             "area_difference_percentage"
@@ -64,22 +80,42 @@ def save_conflict_result(result):
         )
     }
 
-    conflict_response = (
-        supabase
-        .table("conflicts")
-        .insert(conflict_data)
-        .execute()
-    )
+    # -----------------------------------------
+    # 3. UPDATE OR CREATE CONFLICT
+    # -----------------------------------------
 
-    if not conflict_response.data:
-        raise Exception(
-            "Unable to save conflict."
+    if existing_response.data:
+
+        existing_conflict = existing_response.data[0]
+
+        conflict_id = existing_conflict["id"]
+
+        conflict_response = (
+            supabase
+            .table("conflicts")
+            .update(conflict_data)
+            .eq("id", conflict_id)
+            .execute()
         )
 
-    conflict_id = conflict_response.data[0]["id"]
+    else:
+
+        conflict_response = (
+            supabase
+            .table("conflicts")
+            .insert(conflict_data)
+            .execute()
+        )
+
+        if not conflict_response.data:
+            raise Exception(
+                "Unable to save conflict."
+            )
+
+        conflict_id = conflict_response.data[0]["id"]
 
     # -----------------------------------------
-    # 3. SAVE AI ANALYSIS
+    # 4. UPDATE AI ANALYSIS
     # -----------------------------------------
 
     analysis = result.get(
@@ -99,10 +135,36 @@ def save_conflict_result(result):
         )
     }
 
-    supabase \
-        .table("ai_analysis") \
-        .insert(analysis_data) \
+    existing_analysis = (
+        supabase
+        .table("ai_analysis")
+        .select("id")
+        .eq("conflict_id", conflict_id)
+        .order("created_at", desc=True)
+        .limit(1)
         .execute()
+    )
+
+    if existing_analysis.data:
+
+        analysis_id = existing_analysis.data[0]["id"]
+
+        (
+            supabase
+            .table("ai_analysis")
+            .update(analysis_data)
+            .eq("id", analysis_id)
+            .execute()
+        )
+
+    else:
+
+        (
+            supabase
+            .table("ai_analysis")
+            .insert(analysis_data)
+            .execute()
+        )
 
     return {
         "parcel_id": parcel_id,
@@ -115,7 +177,10 @@ def save_source_records(
     source_name
 ):
     """
-    Save cadastral/source records into Supabase.
+    Save source records into Supabase.
+
+    Existing source records for the same parcel/source
+    are replaced by the latest uploaded observation.
     """
 
     # -----------------------------------------
@@ -143,26 +208,36 @@ def save_source_records(
         )
 
     # -----------------------------------------
-    # 2. CREATE SOURCE RECORDS
+    # 2. SAVE SOURCE RECORDS
     # -----------------------------------------
-
-    records = []
 
     for _, row in source_df.iterrows():
 
-        records.append({
-            "parcel_id": row["parcel_id"],
-            "source_name": source_name,
-            "owner_name": row.get("owner"),
-            "land_use": row.get("land_use"),
-            "area": float(row["area_m2"])
-        })
+        parcel_id = row["parcel_id"]
 
-    if records:
+        # Remove previous record for this
+        # parcel + source combination.
 
         (
             supabase
             .table("source_records")
-            .insert(records)
+            .delete()
+            .eq("parcel_id", parcel_id)
+            .eq("source_name", source_name)
+            .execute()
+        )
+
+        record = {
+            "parcel_id": parcel_id,
+            "source_name": source_name,
+            "owner_name": row.get("owner"),
+            "land_use": row.get("land_use"),
+            "area": float(row["area_m2"])
+        }
+
+        (
+            supabase
+            .table("source_records")
+            .insert(record)
             .execute()
         )
